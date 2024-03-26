@@ -1,9 +1,10 @@
 # SNNtrainer3D
 Training Spiking Neural Networks using a User-friendly Application with 3D Architecture Visualization Capabilities
-
+![APP GUI](https://github.com/jurjsorinliviu/SNNtrainer3D/assets/30218337/053fe422-31ff-4f72-8f0d-212dcd811252)
 This document outlines the features and functionality of the **SNNtrainer3D: Training Spiking Neural Networks using a User-friendly Application with 3D Architecture Visualization Capabilities** software application.
 ## Overview
 The SNNtrainer3D is a software application designed to train Spiking Neural Networks (SNNs). It provides a user-friendly interface for designing and training models, with the ability to visualize the model architecture using Three.js. Users can add, remove, and edit hidden layers (currently, only fully connected layers are supported).
+
 
 The SNNtrainer3D offers several novel features that make it a valuable tool for researchers and practitioners in designing neural networks. Its unique capabilities include:
 
