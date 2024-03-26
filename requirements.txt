@@ -1,0 +1,6 @@
+flask
+torch
+torchvision
+numpy
+snntorch
+matplotlib

@@ -1,0 +1,273 @@
+{% import 'macros.html' as macros %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spiking Neural Network Trainer with Network Visualization</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+    <script type=module src="{{ url_for('static', filename='nn_visualize.js') }}"></script>
+    <script>
+    
+        // Function to update layers
+        function updateLayers() {
+            console.log('updateLayers() called!');
+            const form = document.getElementById('layers-form');
+            form.submit();
+        }
+        // Function to remove a layer
+        function removeLayer(button) {
+            const layer = button.parentNode;
+            layer.parentNode.removeChild(layer);
+            updateLayers();
+        }
+    </script>
+</head>
+<body>
+    <!-- hidden div -->
+    <div id="new-leaky-layer" style="display: none;">
+        {{macros.LeakyLayer(1)}}
+    </div>
+    <div id="main-div">
+        <div id="output" style="overflow-y: scroll; height: 90vh; width: 20vw;">
+            {{macros.GUI_output(flags, layers)}}
+        </div>
+        <div id="animation-container">
+            <div id="visualization-div"></div>
+            <script type="module">
+                import { buildNeuralNetwork } from "{{ url_for('static', filename='nn_visualize.js') }}";
+
+                //  build neural network visualization
+                var inputLayer = {{input_layer}};
+                var hiddenLayers = {{ layers }};
+                var outputLayer = {{ output_layer }};
+                const render_nodes = document.getElementById('render_nodes').checked;
+                {% if flags.weights == None %}
+                const weights = null;
+                {% else %}
+                const weights = {{flags.weights}};
+                {% endif %}
+                buildNeuralNetwork(inputLayer, hiddenLayers, outputLayer, weights, render_nodes);
+            </script>
+        </div>
+    </div>
+
+    <script type="module">
+
+        import { buildNeuralNetwork } from "{{ url_for('static', filename='nn_visualize.js') }}";
+        const update_output = function() {
+            console.log('Update button clicked!');
+            var data = {
+                'neuron_type': document.getElementById('neuron_type').value,
+                // 'optimizer': document.getElementById('optimizer').value,
+                // 'loss': document.getElementById('loss').value,
+                'epochs': document.getElementsByName('epochs')[0].value,
+                'learning_rate': document.getElementsByName('learning_rate')[0].value,
+                'beta': document.getElementsByName('beta')[0].value,
+                'num_steps': document.getElementsByName('num_steps')[0].value,
+                'batch_size': document.getElementsByName('batch_size')[0].value,
+                'network_name': document.getElementsByName('network_name')[0].value
+            };
+            if (document.getElementById('render_nodes').checked) {
+                data['render_nodes'] = 'True';
+            }
+            $.ajax({
+                url: '/update',
+                type: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                success: function(data) {
+                    $('#output').html(data)
+                },
+                error: function(error) {
+                    console.log(error);
+                },
+                data: JSON.stringify(data)
+            }).done(function() {
+
+                document.getElementById("add-layer").addEventListener("click", add_layer);
+                document.getElementById("render_nodes").addEventListener("change", updateLayers);
+                document.getElementById("neuron_type").addEventListener("change", update_output);
+                document.getElementById("network_name").addEventListener("change", update_output);
+                // Event listener for input fields
+                const inputFields = document.querySelectorAll('input[class="layer-input"]');
+                inputFields.forEach(function(inputField) {
+                    inputField.addEventListener('keypress', function(event) {
+                        if (event.key === 'Enter') {
+                            updateLayers();
+                        }
+                    });
+                    inputField.addEventListener('blur', updateLayers); // Add blur event listener
+
+                });
+            });
+        }
+        // })
+        function updateProgress() {
+            // log "progress updated!"
+            console.log('progress updated!');
+            fetch('/progress')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('progress').style.width = data.progress + '%';
+                    console.log('progress: ' + data.progress + '%');
+                    if (data.task_running) {
+                        setTimeout(updateProgress, 1000); // Poll every 1 second
+                    }
+                    else {
+                        // log "task complete!"
+                        console.log('task complete!');
+                        // set the log message to task complete
+                        document.getElementById('log-message').innerText = 'SNN Training Complete!';
+                        document.getElementById('progressBar').style.backgroundColor = 'lightgreen';
+                        // scroll to bottom of output
+                        var objDiv = document.getElementById("output");
+                        objDiv.scrollTop = objDiv.scrollHeight;
+
+                        // update
+                        update_output()
+                        // update weights
+                        fetch('/get_weights')
+                            .then(response => response.json())
+                            .then(data => {
+                                const weights = data.weights;
+                                // Visualize weights using weights array
+                                buildNeuralNetwork({{input_layer}}, {{layers}}, {{output_layer}}, weights, document.getElementById('render_nodes').checked);
+                            })
+                            .catch(error => console.error('Error:', error));
+                    }
+                });
+        }
+        function updateMNISTProgress() {
+            // log "progress updated!"
+            console.log('progress updated!');
+            fetch('/progress_MNIST')
+                .then(response => response.json())
+                .then(data => {
+                    // document.getElementById('progress').style.width = data.progress + '%';
+                    // console.log('progress: ' + data.progress + '%');
+                    if (data.task_running) {
+                        setTimeout(updateMNISTProgress, 1000); // Poll every 1 second
+                    }
+                    else {
+                        // log "task complete!"
+                        console.log('task complete!');
+                        // set the log message to task complete
+                        document.getElementById('log-message').innerText = 'MNIST Loaded!';
+                        document.getElementById('progressBar').style.backgroundColor = 'lightgreen';
+                        // scroll to bottom of output
+                        var objDiv = document.getElementById("output");
+                        objDiv.scrollTop = objDiv.scrollHeight;
+                        // update
+                        update_output()
+                    }
+                });
+        }
+        // document.getElementById('startButton').onclick = function() {
+        const start_training = function() {
+            // log "start button clicked!"
+            console.log('start button clicked!');
+            // set log message to "SNN is training..."
+            document.getElementById('log-message').innerText = 'SNN is training...';
+            var data = {
+                'neuron_type': document.getElementById('neuron_type').value,
+                // 'optimizer': document.getElementById('optimizer').value,
+                // 'loss': document.getElementById('loss').value,
+                'epochs': document.getElementsByName('epochs')[0].value,
+                'learning_rate': document.getElementsByName('learning_rate')[0].value,
+                'beta': document.getElementsByName('beta')[0].value,
+                'num_steps': document.getElementsByName('num_steps')[0].value,
+                'batch_size': document.getElementsByName('batch_size')[0].value,
+                'network_name': document.getElementsByName('network_name')[0].value
+            };
+            if (document.getElementById('render_nodes').checked) {
+                data['render_nodes'] = 'True';
+            }
+            fetch('/start_task', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    updateProgress();
+                });
+        };
+
+        const save_weights = function() {
+            console.log('Save Weights and Evaluate SNN Model button clicked!');
+            // window.location.href = "/save_weights";
+            try {
+                fetch('/save_weights')
+                    .then(response => {
+                        if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                        }
+                        else {
+                            console.log('Weights saved!');
+                            // change message to "Weights saved!"
+                            document.getElementById('log-message').innerText = 'Weights saved!';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('There was a problem with the fetch operation:', error);
+                    });
+            } catch (error) {
+                console.error('Error:', error);
+            }
+
+        };
+
+        const download_mnist = function() {
+            // log "start button clicked!"
+            console.log('MNIST start button clicked!');
+            // set log message to "SNN is training..."
+            document.getElementById('log-message').innerText = 'Downloading MNIST...';
+            fetch('/download_mnist_task')
+                .then(response => response.json())
+                .then(data => {
+                    updateMNISTProgress();
+                });
+        };
+
+        const add_layer = function() {
+            const layersContainer = document.getElementById('layers-container');
+            // create a layer based on macro LeakyLayer
+            const layerHTML = document.getElementById('new-leaky-layer').innerHTML;
+            const layer = document.createElement('div');
+            layer.innerHTML = layerHTML;
+            layersContainer.appendChild(layer);
+            updateLayers();
+        };
+
+        window.start_training = start_training;
+        window.save_weights = save_weights;
+        window.update_output = update_output;
+        window.updateProgress = updateProgress;
+        window.updateMNISTProgress = updateMNISTProgress;
+        window.download_mnist = download_mnist;
+        window.add_layer = add_layer;
+
+
+        document.getElementById("add-layer").addEventListener("click", add_layer);
+        document.getElementById("render_nodes").addEventListener("change", updateLayers);
+        document.getElementById("neuron_type").addEventListener("change", update_output);
+        document.getElementById("network_name").addEventListener("change", update_output);
+        // Event listener for input fields
+        const inputFields = document.querySelectorAll('input[class="layer-input"]');
+        inputFields.forEach(function(inputField) {
+            inputField.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    updateLayers();
+                }
+            });
+            inputField.addEventListener('blur', updateLayers); // Add blur event listener
+
+        });
+    </script>
+</body>
+</html>

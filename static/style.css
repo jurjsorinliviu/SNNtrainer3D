@@ -1,0 +1,107 @@
+/* Reset default margin and padding */
+html, body {
+    margin: 0;
+    padding: 0;
+}
+
+/* Dark theme */
+body {
+    background-color: #000000;
+    color: #fff;
+    font-family: Arial, sans-serif;
+}
+
+/* Main container */
+#main-div {
+    display: flex;
+    flex-direction: row;
+    margin: 20px;
+}
+
+#controls {
+    display: flex;
+    flex-direction: column;
+    /* center alignment */
+    align-items: center;
+}
+
+/* Form container */
+#layers-form {
+    /* flex: 1; */
+    margin-right: 40px;
+    /* grow horizontally as much as possible */
+    flex-grow: 1;
+    
+}
+
+/* Input and button styles */
+input[type="number"],
+button {
+    padding: 8px;
+    margin: 5px 0;
+    background-color: #333;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+}
+
+input[type="number"] {
+    width: 50px;
+}
+
+button {
+    width: 100px;
+}
+
+/* Remove button style */
+.remove-layer {
+    background-color: #d9534f;
+}
+
+/* Add Layer button style */
+#add-layer {
+    background-color: #5cb85c;
+}
+
+/* Visualization div style */
+#visualization-div {
+    flex: 1;
+}
+
+/* Adjustments for header and buttons */
+h2 {
+    margin-top: 0;
+}
+
+button[type="submit"] {
+    margin-top: 10px;
+    background-color: #337ab7;
+}
+
+/* Hide default number input arrow buttons */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+/* Optional: Styling for scrollbars */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #333;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}

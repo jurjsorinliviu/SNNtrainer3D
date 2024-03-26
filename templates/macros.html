@@ -1,0 +1,119 @@
+{% macro GUI_form(flags, layers) %}
+<form id="layers-form" action="/update_layers" method="post">
+    <div class="selections" title="Enable/Disable the rendering of individual nodes and the connections between them.">
+        <h3>Render Nodes</h3>
+        {% if flags.render_nodes %}
+            <input id="render_nodes" name="render_nodes" type="checkbox" value="True" checked>Render
+        {% else %}
+            <input id="render_nodes" name="render_nodes" type="checkbox">Render
+        {% endif %}
+    </div>
+    <h3>Number of SNN Layers and Neurons</h3>
+    <div id="layers-container" title="The hidden layers of the neural network and the amount of nodes on each.">
+        {% for layer in layers %}
+            {{LeakyLayer(layer)}}
+        {% endfor %}
+    </div>
+    <button type="button" id="add-layer">Add Layer</button>
+    <div class="selections" title="The type of neuron to be used on the neural network. Changing this will change the available parameters.">
+        <h3>Neuron Type</h3>
+        <select name="neuron_type" id="neuron_type" onchange="updateLayers()">
+            <option value="Leaky" {% if flags.neuron_type == "Leaky" %} selected {% endif %}>Leaky Integrate and Fire</option>
+            <option value="Lapicque" {% if flags.neuron_type == "Lapicque" %} selected {% endif %}>Lapicque</option>
+            <option value="Synaptic" {% if flags.neuron_type == "Synaptic" %} selected {% endif %}>Synaptic</option>
+            <option value="Alpha" {% if flags.neuron_type == "Alpha" %} selected {% endif %}>Alpha</option>
+        </select>
+    </div>
+    <!-- number of epochs -->
+    <div class="selections" title="The number of epochs the training cycle will run for on the given dataset.">
+        <h3>Number of Epochs</h3>
+        <input type="number" name="epochs" value="{{flags.epochs}}" required>
+    </div>
+    <!-- learning rate -->
+    <div class="selections" title="The learning rate hyperparameter used by the optimizer.">
+        <h3>Learning Rate</h3>
+        <input type="number" name="learning_rate" value="{{flags.learning_rate}}" required>
+    </div>
+    <!-- alpha -->
+    <!-- show only if neuron_type is Synaptic -->
+    {% if flags.neuron_type == "Synaptic" or flags.neuron_type == "Alpha" %}
+        <div class="selections" title="The decay rate of the synaptic current of the neurons, hyperparameter. {%if flags.neuron_type == 'Alpha'%} Must be greater than beta, or will be set automatically.{% endif %}">
+            <h3>Alpha</h3>
+            <input type="number" name="alpha" value="{{flags.alpha}}" required>
+        </div>
+    {% endif %}
+    <!-- beta -->
+    <div class="selections" title="The decay rate of the membrane potential of the neurons, hyperparameter.">
+        <h3>Beta</h3>
+        <input type="number" name="beta" value="{{flags.beta}}" required>
+    </div>
+    <!-- number of steps -->
+    <div class="selections" title="The amount of time steps the membrane potential is recorded across.">
+        <h3>Number of Steps</h3>
+        <input type="number" name="num_steps" value="{{flags.num_steps}}" required>
+    </div>
+    <!-- batch size -->
+    <div class="selections" title="The size of the training batches.">
+        <h3>Batch Size</h3>
+        <input type="number" name="batch_size" value="{{flags.batch_size}}" required>
+    </div>
+    <div class="selections" title="The name of the SNN. Used for naming saved files.">
+        <h3>SNN Model Name</h3>
+        <input type="text" name="network_name" id="network_name" value="{{flags.network_name}}" required>
+    </div>
+    <!-- <div class="selections" title=" TODO ">
+        <h3>Optimization algorithm</h3>
+        <select name="optimizer" id="optimizer">
+            <option value="adam">Adam</option>
+        </select>
+    </div>
+    <div class="selections" title=" TODO ">
+        <h3>Loss function</h3>
+        <select name="loss" id="loss">
+            <option value="CrossEntropyLoss">Cross Entropy Loss</option>
+        </select>
+    </div> -->
+</form>
+{% endmacro %}
+
+{% macro LeakyLayer(nodes) %}
+<div class="layer">
+    <input type="number" class="layer-input" name="layer" value="{{ nodes }}" required>
+    <button type="button" class="remove-layer" onclick="removeLayer(this)">Remove</button>
+</div>
+{% endmacro %}
+
+{% macro controls(flags) %}
+<div id="controls">
+    <h3>Actions</h3>
+    <!-- if not mnist_loaded -->
+    {% if not flags.mnist_loaded %}
+        <!-- add a button to download mnist -->
+        <!-- <form action="/download_mnist" method="post">
+            <button type="submit">Download MNIST</button>
+        </form> -->
+        <button id="download-mnist" onclick="download_mnist()">Download MNIST</button>
+    <!-- else add a button saying "MNIST dataset loaded!" -->
+    {% else %}
+        <button type="button" disabled>MNIST dataset loaded!</button>
+        <!-- add a "Train" button -->
+        <!-- <form action="/train" method="post">
+            <button type="submit">Train</button>
+        </form> -->
+        <button id="startButton" onclick="start_training()">Train SNN</button>
+        <!-- if network trained -->
+        {% if flags.network_trained %}
+        <button id="save-weights" onclick="save_weights()">Save Weights and Evaluate SNN Model</button>
+        {% endif %}
+    {% endif %}
+</div>
+<h2 id="log-message">{{flags.message}}</h2>
+<div id="progressBar" style="height: 50px; width: 90%; background-color: lightgray;">
+    <div id="progress" style="height: 100%; width: 0%; background-color: green;"></div>
+</div>
+{% endmacro %}
+
+{% macro GUI_output(flags, layers) %}
+{{GUI_form(flags, layers)}}
+{{controls(flags)}}
+{% endmacro %}

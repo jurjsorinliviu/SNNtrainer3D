@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Number of SNN Layers and Neurons</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <script>
+    
+        // Function to update layers
+        function updateLayers() {
+            const form = document.getElementById('layers-form');
+            form.submit();
+        }
+        // Function to remove a layer
+        function removeLayer(button) {
+            const layer = button.parentNode;
+            layer.parentNode.removeChild(layer);
+            updateLayers();
+        }
+    </script>
+    <div id="main-div">
+        <form id="layers-form" action="/update_layers" method="post">
+            <h2> Number of SNN Layers and Neurons</h2>
+            <div id="layers-container">
+                {% for layer in layers %}
+                    <div class="layer">
+                        <input type="number" name="layer" value="{{ layer }}" required>
+                        <button type="button" class="remove-layer" onclick="removeLayer(this)">Remove</button>
+                    </div>
+                {% endfor %}
+            </div>
+            <button type="button" id="add-layer">Add Layer</button>
+            <button type="submit">Update Layers</button>
+        </form>
+        <!-- make div for visualization -->
+        <div id="visualization-div"></div>
+    </div>
+    <!-- if not mnist_loaded -->
+    {% if not mnist_loaded %}
+        <!-- add a button to download mnist -->
+        <form action="/download_mnist" method="post">
+            <button type="submit">Download MNIST</button>
+        </form>
+    <!-- else add a button saying "MNIST dataset loaded!" -->
+    {% else %}
+        <button type="button" disabled>MNIST dataset loaded!</button>
+        <!-- add a "Train" button -->
+        <form action="/train" method="post">
+            <button type="submit">Train SNN</button>
+        </form>
+    {% endif %}
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+    <script type=module src="{{ url_for('static', filename='nn_visualize.js') }}"></script>
+    <script type="module">
+        import { buildNeuralNetwork } from "{{ url_for('static', filename='nn_visualize.js') }}";
+
+        // if {update_animation}
+        {% if update_animation %}
+            // build neural network visualization
+            const inputLayer = {{ input_layer }};
+            const hiddenLayers = {{ layers }};
+            const outputLayer = {{ output_layer }};
+            buildNeuralNetwork(inputLayer, hiddenLayers, outputLayer);
+        {% endif %}
+        // //  build neural network visualization
+        // const inputLayer = {{ input_layer }};
+        // const hiddenLayers = {{ layers }};
+        // const outputLayer = {{ output_layer }};
+        // buildNeuralNetwork(inputLayer, hiddenLayers, outputLayer);
+    
+        // Event listener for input fields
+        const inputFields = document.querySelectorAll('input[type="number"]');
+        inputFields.forEach(function(inputField) {
+            inputField.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    updateLayers();
+                }
+            });
+            inputField.addEventListener('blur', updateLayers); // Add blur event listener
+
+        });
+    
+        // Event listener for adding a layer
+        document.getElementById('add-layer').addEventListener('click', function() {
+            const layersContainer = document.getElementById('layers-container');
+            const newLayer = document.createElement('div');
+            newLayer.classList.add('layer');
+            newLayer.innerHTML = `
+                <input type="number" name="layer" value="1" required>
+                <button type="button" class="remove-layer" onclick="removeLayer(this)">Remove</button>
+            `;
+            layersContainer.appendChild(newLayer);
+            updateLayers();
+        });
+    </script>
+    
+    
+</body>
+
+
+</html>

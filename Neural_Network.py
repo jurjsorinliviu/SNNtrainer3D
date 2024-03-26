@@ -1,0 +1,485 @@
+import collections
+import snntorch as snn
+from snntorch import spikeplot as splt
+from snntorch import spikegen
+
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+import numpy as np
+# import itertools
+import pandas as pd
+import json
+import pickle
+import os
+import random
+
+num_steps = 100
+# Define Network
+class SNN(nn.Module):
+    def __init__(self, num_inputs, hidden_layers, num_outputs, neuronType):
+        super().__init__()
+        self.neuron_type = neuronType
+        self.num_inputs = num_inputs
+        self.hidden_layers = hidden_layers
+        self.num_outputs = num_outputs
+        self.hyperparameters = {}
+        self.test_accuracy = None
+    
+    def save_weights(self, path):
+        torch.save(self.state_dict(), path)
+
+    def load_weights(self, path):
+        self.load_state_dict(torch.load(path))
+
+    def get_weight_list(self):
+        # get fully connected weights (not biases)
+        weights = []
+        # get the input layer weights
+        weights.append(self.fc1.weight.tolist())
+        for layer in self.fcs:
+            weights.append(layer.weight.tolist())
+        # get the output layer weights
+        weights.append(self.fc2.weight.tolist())
+        return weights
+
+    def save_model(self, path, pickle=False):
+        if pickle:
+            with open(path, 'wb') as f:
+                pickle.dump(self, f)
+        else:
+            weights = self.state_dict()
+            # convert to list
+            for key in weights:
+                w = weights[key].tolist()
+                dtype = str(weights[key].dtype)
+                weights[key] = {"data": w, "dtype": dtype}
+            parameters = {
+                "neuron_type": self.neuron_type,
+                "num_inputs": self.num_inputs,
+                "hidden_layers": self.hidden_layers,
+                "num_outputs": self.num_outputs,
+                "hyperparameters": self.hyperparameters
+            }
+            model_dict = {
+                "weights": weights,
+                "parameters": parameters
+            }
+            json.dump(model_dict, open(path, 'w'))
+    
+    @staticmethod
+    def load_model(path, pickle=False):
+        if pickle:
+            with open(path, 'rb') as f:
+                return pickle.load(f)
+        else:
+            model_dict = json.load(open(path, 'r'))
+            weights = collections.OrderedDict()
+            for key in model_dict["weights"]:
+                type_str = model_dict["weights"][key]["dtype"]
+                class_name = type_str.split(".")[-1]
+                # print(getattr(torch, class_name))
+                w = torch.tensor(model_dict["weights"][key]["data"], dtype=getattr(torch, class_name))
+                # w = torch.tensor(model_dict["weights"][key]["data"], dtype=getattr(torch, model_dict["weights"][key]["dtype"]))
+                weights[key] = w
+                # weights[key] = torch.tensor(model_dict["weights"][key]["data"])
+            netClass = None
+            if model_dict["parameters"]["neuron_type"] == "Leaky":
+                netClass = LeakyNet
+            net = netClass(model_dict["parameters"]["num_inputs"], model_dict["parameters"]["hidden_layers"], model_dict["parameters"]["num_outputs"], **model_dict["parameters"]["hyperparameters"])
+            net.load_state_dict(weights)
+            return net
+
+class LeakyNet(SNN):
+    def __init__(self, num_inputs, hidden_layers, num_outputs, beta=0.95, **kwargs):
+        super().__init__(num_inputs, hidden_layers, num_outputs, "Leaky")
+        self.hyperparameters["beta"] = beta
+        if len(hidden_layers) > 0:
+            self.fc1 = nn.Linear(num_inputs, hidden_layers[0])
+            self.lifs = nn.ModuleList([snn.Leaky(beta=beta) for _ in range(len(hidden_layers)+1)])
+            self.fcs = nn.ModuleList([nn.Linear(hidden_layers[i], hidden_layers[i+1]) for i in range(len(hidden_layers)-1)])
+            self.fc2 = nn.Linear(hidden_layers[-1], num_outputs)
+        else:
+            self.fc1 = nn.Linear(num_inputs, num_outputs)
+            self.lifs = nn.ModuleList([snn.Leaky(beta=beta)])
+            self.fcs = nn.ModuleList([])
+
+    def forward(self, x):
+        mems = [lif.init_leaky() for lif in self.lifs]
+        spk_rec = []
+        mems_rec = []
+
+        
+        for step in range(num_steps):
+            if len(self.hidden_layers) > 0:
+                cur = self.fc1(x)
+                spk, mems[0] = self.lifs[0](cur, mems[0])
+                for i in range(len(self.fcs)):
+                    cur = self.fcs[i](spk)
+                    spk, mems[i+1] = self.lifs[i+1](cur, mems[i+1])
+                cur = self.fc2(spk)
+                spk, mems[-1] = self.lifs[-1](cur, mems[-1])
+                mems_rec.append(mems[-1].clone())
+                spk_rec.append(spk)
+            else:
+                cur = self.fc1(x)
+                spk, mems[0] = self.lifs[0](cur, mems[0])
+                mems_rec.append(mems[0].clone())
+                spk_rec.append(spk)
+        return torch.stack(spk_rec, dim=0), torch.stack(mems_rec, dim=0)
+
+class LapicqueNet(SNN):
+    def __init__(self, num_inputs, hidden_layers, num_outputs, beta=0.95, **kwargs):
+        super().__init__(num_inputs, hidden_layers, num_outputs, "Lapicque")
+        self.hyperparameters["beta"] = beta
+        if len(hidden_layers) > 0:
+            self.fc1 = nn.Linear(num_inputs, hidden_layers[0])
+            self.lifs = nn.ModuleList([snn.Lapicque(beta=beta) for _ in range(len(hidden_layers)+1)])
+            self.fcs = nn.ModuleList([nn.Linear(hidden_layers[i], hidden_layers[i+1]) for i in range(len(hidden_layers)-1)])
+            self.fc2 = nn.Linear(hidden_layers[-1], num_outputs)
+        else:
+            self.fc1 = nn.Linear(num_inputs, num_outputs)
+            self.lifs = nn.ModuleList([snn.Lapicque(beta=beta)])
+            self.fcs = nn.ModuleList([])
+
+    def forward(self, x):
+        mems = [lif.init_leaky() for lif in self.lifs]
+        spk_rec = []
+        mems_rec = []
+
+        
+        for step in range(num_steps):
+            if len(self.hidden_layers) > 0:
+                cur = self.fc1(x)
+                spk, mems[0] = self.lifs[0](cur, mems[0])
+                for i in range(len(self.fcs)):
+                    cur = self.fcs[i](spk)
+                    spk, mems[i+1] = self.lifs[i+1](cur, mems[i+1])
+                cur = self.fc2(spk)
+                spk, mems[-1] = self.lifs[-1](cur, mems[-1])
+                mems_rec.append(mems[-1].clone())
+                spk_rec.append(spk)
+            else:
+                cur = self.fc1(x)
+                spk, mems[0] = self.lifs[0](cur, mems[0])
+                mems_rec.append(mems[0].clone())
+                spk_rec.append(spk)
+        return torch.stack(spk_rec, dim=0), torch.stack(mems_rec, dim=0)
+    
+class SynapticNet(SNN):
+    def __init__(self, num_inputs, hidden_layers, num_outputs, alpha=0.95, beta=0.95, **kwargs):
+        super().__init__(num_inputs, hidden_layers, num_outputs, "Synaptic")
+        self.hyperparameters["alpha"] = alpha
+        self.hyperparameters["beta"] = beta
+        if len(hidden_layers) > 0:
+            self.fc1 = nn.Linear(num_inputs, hidden_layers[0])
+            self.lifs = nn.ModuleList([snn.Synaptic(alpha, beta) for _ in range(len(hidden_layers)+1)])
+            self.fcs = nn.ModuleList([nn.Linear(hidden_layers[i], hidden_layers[i+1]) for i in range(len(hidden_layers)-1)])
+            self.fc2 = nn.Linear(hidden_layers[-1], num_outputs)
+        else:
+            self.fc1 = nn.Linear(num_inputs, num_outputs)
+            self.lifs = nn.ModuleList([snn.Synaptic(alpha, beta)])
+            self.fcs = nn.ModuleList([])
+
+    def forward(self, x):
+        # cur1 = self.fc1(x)
+        # spk1, syn1, mem1 = self.lif1(cur1, syn1, mem1)
+        # cur2 = self.fc2(spk1)
+        # spk2, syn2, mem2 = self.lif2(cur2, syn2, mem2)
+        # return syn1, mem1, spk1, syn2, mem2, spk2
+        synAndMems = [lif.init_synaptic() for lif in self.lifs]
+        spk_rec = []
+        syn_mems_rec = []
+        # syn_rec = []
+
+        
+        for step in range(num_steps):
+            if len(self.hidden_layers) > 0:
+                cur = self.fc1(x)
+                spk, syn, mem = self.lifs[0](cur, *synAndMems[0])
+                synAndMems[0] = (syn, mem)
+                for i in range(len(self.fcs)):
+                    cur = self.fcs[i](spk)
+                    spk, syn, mem = self.lifs[i+1](cur, *synAndMems[i+1])
+                    synAndMems[i+1] = (syn, mem)
+                cur = self.fc2(spk)
+                spk, syn, mem = self.lifs[-1](cur, *synAndMems[-1])
+                synAndMems[-1] = (syn, mem)
+                syn_mems_rec.append(synAndMems[-1])
+                spk_rec.append(spk)
+            else:
+                cur = self.fc1(x)
+                spk, syn, mem = self.lifs[0](cur, *synAndMems[0])
+                synAndMems[0] = (syn, mem)
+                syn_mems_rec.append(synAndMems[0])
+                spk_rec.append(spk)
+        syn_rec = [syn_mems_rec[i][0] for i in range(len(syn_mems_rec))]
+        mem_rec = [syn_mems_rec[i][1] for i in range(len(syn_mems_rec))]
+        # print(len(syn_mems_rec))
+        return torch.stack(spk_rec, dim=0), torch.stack(mem_rec, dim=0)
+    
+class AlphaNet(SNN):
+    def __init__(self, num_inputs, hidden_layers, num_outputs, alpha=0.95, beta=0.95, **kwargs):
+        super().__init__(num_inputs, hidden_layers, num_outputs, "Alpha")
+        if alpha <= beta:
+            print("Alpha must be greater than beta")
+            print("Setting alpha to beta")
+            alpha = beta + 10**-6
+        self.hyperparameters["alpha"] = alpha
+        self.hyperparameters["beta"] = beta
+        if len(hidden_layers) > 0:
+            self.fc1 = nn.Linear(num_inputs, hidden_layers[0])
+            self.lifs = nn.ModuleList([snn.Alpha(alpha, beta) for _ in range(len(hidden_layers)+1)])
+            self.fcs = nn.ModuleList([nn.Linear(hidden_layers[i], hidden_layers[i+1]) for i in range(len(hidden_layers)-1)])
+            self.fc2 = nn.Linear(hidden_layers[-1], num_outputs)
+        else:
+            self.fc1 = nn.Linear(num_inputs, num_outputs)
+            self.lifs = nn.ModuleList([snn.Alpha(alpha, beta)])
+            self.fcs = nn.ModuleList([])
+
+    def forward(self, x):
+        synAndMems = [lif.init_alpha() for lif in self.lifs]
+        spk_rec = []
+        syn_mems_rec = []
+
+        
+        for step in range(num_steps):
+            if len(self.hidden_layers) > 0:
+                cur = self.fc1(x)
+                spk, syn_exc, syn_inh, mem = self.lifs[0](cur, *synAndMems[0])
+                synAndMems[0] = (syn_exc, syn_inh, mem)
+                for i in range(len(self.fcs)):
+                    cur = self.fcs[i](spk)
+                    spk, syn_exc, syn_inh, mem = self.lifs[i+1](cur, *synAndMems[i+1])
+                    synAndMems[i+1] = (syn_exc, syn_inh, mem)
+                cur = self.fc2(spk)
+                spk, syn_exc, syn_inh, mem = self.lifs[-1](cur, *synAndMems[-1])
+                synAndMems[-1] = (syn_exc, syn_inh, mem)
+                syn_mems_rec.append(synAndMems[-1])
+                spk_rec.append(spk)
+            else:
+                cur = self.fc1(x)
+                spk, syn_exc, syn_inh, mem = self.lifs[0](cur, *synAndMems[0])
+                synAndMems[0] = (syn_exc, syn_inh, mem)
+                syn_mems_rec.append(synAndMems[0])
+                spk_rec.append(spk)
+        syn_rec = [syn_mems_rec[i][0] for i in range(len(syn_mems_rec))]
+        mem_rec = [syn_mems_rec[i][2] for i in range(len(syn_mems_rec))]
+        return torch.stack(spk_rec, dim=0), torch.stack(mem_rec, dim=0)
+    
+def print_batch_accuracy(data, targets, net, train=False):
+    output, _ = net(data.view(batch_size, -1))
+    _, idx = output.sum(dim=0).max(1)
+    acc = np.mean((targets == idx).detach().cpu().numpy())
+
+    if train:
+        print(f"Train set accuracy for a single minibatch: {acc*100:.2f}%")
+    else:
+        print(f"Test set accuracy for a single minibatch: {acc*100:.2f}%")
+    return acc
+
+def train_printer(
+    data, targets, epoch,
+    counter, iter_counter,
+        loss_hist, test_loss_hist, test_data, test_targets, net):
+    print(f"Epoch {epoch}, Iteration {iter_counter}")
+    print(f"Train Set Loss: {loss_hist[counter]:.2f}")
+    print(f"Test Set Loss: {test_loss_hist[counter]:.2f}")
+    train_acc = print_batch_accuracy(data, targets, net, train=True)
+    test_acc = print_batch_accuracy(test_data, test_targets, net, train=False)
+    print("\n")
+    return {
+        "epoch": epoch,
+        "iteration": counter,
+        "train_loss": loss_hist[counter],
+        "test_loss": test_loss_hist[counter],
+        "train_acc": train_acc,
+        "test_acc": test_acc
+    }
+
+# dataloader arguments
+batch_size = 128
+data_path='/tmp/data/mnist'
+
+dtype = torch.float
+# Load and transform mnist dataset
+def loadMNIST():
+    transform = transforms.Compose([
+                # transforms.Resize((28, 28)),
+                transforms.Grayscale(),
+                transforms.ToTensor(),
+                transforms.Normalize((0,), (1,))])
+
+    mnist_train = datasets.MNIST(data_path, train=True, download=True, transform=transform)
+    mnist_test = datasets.MNIST(data_path, train=False, download=True, transform=transform)
+
+
+    train_loader = DataLoader(mnist_train, batch_size=batch_size, shuffle=True, drop_last=True)
+    test_loader = DataLoader(mnist_test, batch_size=batch_size, shuffle=True, drop_last=True)
+    return train_loader, test_loader
+
+
+def train_network(net, train_loader, test_loader, flags):
+    epochs = flags['epochs']
+    num_steps = flags['num_steps']
+    batch_size = flags['batch_size']
+    name = flags['network_name']
+    # check if file named name already exists, if it does, add a random number to the end
+    while os.path.exists(name):
+        name = name + str(random.randint(0, 10))
+    # else:
+    # save flags dict as json in file
+    with open(name, 'w') as f:
+        json.dump(flags, f, indent=4)
+        
+    # Load the network onto CUDA if available
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # net = Net(num_inputs, num_hidden, num_outputs, beta=beta).to(device)
+    loss = nn.CrossEntropyLoss()
+
+    optimizer = torch.optim.Adam(net.parameters(), lr=5e-4, betas=(0.9, 0.999))
+
+    num_epochs = epochs
+    loss_hist = []
+    test_loss_hist = []
+    counter = 0
+    train_data = pd.DataFrame(columns=["epoch", "iteration", "train_loss", "test_loss", "train_acc", "test_acc"])
+
+    # Outer training loop
+    for epoch in range(num_epochs):
+        iter_counter = 0
+        train_batch = iter(train_loader)
+
+        # Minibatch training loop
+        for data, targets in train_batch:
+            data = data.to(device)
+            targets = targets.to(device)
+
+            # forward pass
+            net.train()
+            spk_rec, mem_rec = net(data.view(batch_size, -1))
+
+            # print(len(mem_rec))
+            # initialize the loss & sum over time
+            loss_val = torch.zeros((1), dtype=dtype, device=device)
+            for step in range(num_steps):
+                loss_val += loss(mem_rec[step], targets)
+
+            # Gradient calculation + weight update
+            optimizer.zero_grad()
+            loss_val.backward()
+            optimizer.step()
+
+            # Store loss history for future plotting
+            loss_hist.append(loss_val.item())
+
+            # Test set
+            with torch.no_grad():
+                net.eval()
+                test_data, test_targets = next(iter(test_loader))
+                test_data = test_data.to(device)
+                test_targets = test_targets.to(device)
+
+                # Test set forward pass
+                test_spk, test_mem = net(test_data.view(batch_size, -1))
+
+                # Test set loss
+                test_loss = torch.zeros((1), dtype=dtype, device=device)
+                for step in range(num_steps):
+                    test_loss += loss(test_mem[step], test_targets)
+                test_loss_hist.append(test_loss.item())
+
+                # Print train/test loss/accuracy
+                if counter % 50 == 0:
+                    data_point = train_printer(
+                        data, targets, epoch,
+                        counter, iter_counter,
+                        loss_hist, test_loss_hist,
+                        test_data, test_targets, net)
+                    train_data = train_data._append(data_point, ignore_index=True)
+                counter += 1
+                iter_counter +=1
+            yield counter/(len(train_loader)*num_epochs)
+
+        # check if it's the last epoch
+        if epoch == num_epochs-1:
+            counter -= 1
+            iter_counter -= 1
+            data_point = train_printer(
+                data, targets, epoch,
+                counter, iter_counter,
+                loss_hist, test_loss_hist,
+                test_data, test_targets, net)
+            # check if this data point is already in the train data
+            if len(train_data) == 0:
+                train_data = train_data._append(data_point, ignore_index=True)
+            elif train_data.iloc[-1]["iteration"] != data_point["iteration"]:
+                train_data = train_data._append(data_point, ignore_index=True)
+    output, _ = net(data.view(batch_size, -1))
+    _, idx = output.sum(dim=0).max(1)
+    acc = np.mean((targets == idx).detach().cpu().numpy())
+    net.test_accuracy = acc*100
+    # save train data to file
+    train_data.to_csv(f"{name}_train_data.csv")
+    # plot the train acc
+    plt.plot(train_data['iteration'], train_data['train_acc'], label="Train Accuracy")
+    plt.plot(train_data['iteration'], train_data['test_acc'], label="Test Accuracy")
+    plt.xlabel("Iteration")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    # save it to a file
+    plt.savefig(f"{name}_accuracy_during_training.png")
+    plt.close()
+    # plot the train loss
+    plt.plot(train_data['iteration'], train_data['train_loss'], label="Train Loss")
+    plt.plot(train_data['iteration'], train_data['test_loss'], label="Test Loss")
+    plt.xlabel("Iteration")
+    plt.ylabel("Loss")
+    plt.legend()
+    # save it to a file
+    plt.savefig(f"{name}_loss_during_training.png")
+    plt.close()
+
+
+if __name__ == "__main__":
+    # net = Net(28*28, [100, 100, 100], 10, beta=0.95)
+    # # get fully connected weights (not biases)
+    # weights = []
+    # # get the input layer weights
+    # weights.append(net.fc1.weight.tolist())
+    # for layer in net.fcs:
+    #     weights.append(layer.weight.tolist())
+    # # get the output layer weights
+    # weights.append(net.fc2.weight.tolist())
+    # for w in weights:
+    #     print(w)
+    # weights_path = "tmp_weights.pth"
+    # net = Net.load_from_weights(weights_path)
+    # print(net.test_accuracy)
+    net = SynapticNet(28*28, [20, 10], 10, beta=0.6, alpha=0.6)
+    # net.save_model("tmp_model.json")
+    # net = SynapticNet.load_model("tmp_model.json")
+    train_loader, test_loader = loadMNIST()
+    flags = {
+        "mnist_loaded": True,
+        "network_trained": False,
+        "message": "",
+        "num_steps": 25,
+        "epochs": 1,
+        "batch_size": 128,
+        "learning_rate": 5e-4,
+        "beta": 0.95,
+        "alpha": 0.5,
+        "render_nodes": False,
+        "neuron_type": "Leaky",
+        "weights": None,
+        "network_name": "SNN"
+    }
+    for progress in train_network(net, train_loader, test_loader, flags):
+        # print(progress)
+        pass

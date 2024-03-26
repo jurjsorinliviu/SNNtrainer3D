@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+
+{% block animation %}
+    <div id="visualization-div"></div>
+    <script type="module">
+        import { buildNeuralNetwork } from "{{ url_for('static', filename='nn_visualize.js') }}";
+
+        //  build SNN visualization
+        var inputLayer = 12
+        var hiddenLayers = {{ network_layers }}
+        var outputLayer = {{ output_layer }}
+        buildNeuralNetwork(inputLayer, hiddenLayers, outputLayer)
+    </script>
+{% endblock %}
