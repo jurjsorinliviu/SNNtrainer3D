@@ -1,0 +1,15 @@
+{
+    "mnist_loaded": true,
+    "network_trained": false,
+    "message": "MNIST dataset was downloaded successfully!",
+    "num_steps": 25,
+    "epochs": 1,
+    "batch_size": 128,
+    "learning_rate": 0.0005,
+    "beta": 0.95,
+    "alpha": 0.5,
+    "render_nodes": true,
+    "neuron_type": "Leaky",
+    "weights": null,
+    "network_name": "SNN-1L-25n-LIF"
+}
