@@ -89,7 +89,7 @@ Given the interactivity of the application, we chose the following technology st
 
 **Deep Learning Module**
 
-\- Implemented logic for dataset management, model training, and weight saving using PyTorch and snnTorch
+\- Implemented logic for dataset management, model training, and weight saving using PyTorch and [snnTorch](https://snntorch.readthedocs.io/en/latest/)
 
 **Frontend Development**
 
