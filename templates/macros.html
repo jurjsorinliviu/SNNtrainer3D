@@ -8,7 +8,8 @@
             <input id="render_nodes" name="render_nodes" type="checkbox">Render
         {% endif %}
     </div>
-    <h3>Number of SNN Layers and Neurons</h3>
+    <h3>Neural Network Layers</h3>
+    <h5>Total FLOPs: <a id="flops-count">{{flags.flops}}</a></h1>
     <div id="layers-container" title="The hidden layers of the neural network and the amount of nodes on each.">
         {% for layer in layers %}
             {{LeakyLayer(layer)}}
@@ -19,7 +20,7 @@
         <h3>Neuron Type</h3>
         <select name="neuron_type" id="neuron_type" onchange="updateLayers()">
             <option value="Leaky" {% if flags.neuron_type == "Leaky" %} selected {% endif %}>Leaky Integrate and Fire</option>
-            <option value="Lapicque" {% if flags.neuron_type == "Lapicque" %} selected {% endif %}>Lapicque</option>
+            <option value="Lapique" {% if flags.neuron_type == "Lapique" %} selected {% endif %}>Lapique</option>
             <option value="Synaptic" {% if flags.neuron_type == "Synaptic" %} selected {% endif %}>Synaptic</option>
             <option value="Alpha" {% if flags.neuron_type == "Alpha" %} selected {% endif %}>Alpha</option>
         </select>
@@ -57,8 +58,8 @@
         <h3>Batch Size</h3>
         <input type="number" name="batch_size" value="{{flags.batch_size}}" required>
     </div>
-    <div class="selections" title="The name of the SNN. Used for naming saved files.">
-        <h3>SNN Model Name</h3>
+    <div class="selections" title="The name of the neural network. Used for naming saved files.">
+        <h3>Network Name</h3>
         <input type="text" name="network_name" id="network_name" value="{{flags.network_name}}" required>
     </div>
     <!-- <div class="selections" title=" TODO ">
@@ -100,10 +101,10 @@
         <!-- <form action="/train" method="post">
             <button type="submit">Train</button>
         </form> -->
-        <button id="startButton" onclick="start_training()">Train SNN</button>
+        <button id="startButton" onclick="start_training()">Train Neural Network</button>
         <!-- if network trained -->
         {% if flags.network_trained %}
-        <button id="save-weights" onclick="save_weights()">Save Weights and Evaluate SNN Model</button>
+        <button id="save-weights" onclick="save_weights()">Save Weights</button>
         {% endif %}
     {% endif %}
 </div>

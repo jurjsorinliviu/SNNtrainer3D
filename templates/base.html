@@ -57,7 +57,7 @@
 
         import { buildNeuralNetwork } from "{{ url_for('static', filename='nn_visualize.js') }}";
         const update_output = function() {
-            console.log('Update button clicked!');
+            console.log('update button clicked!');
             var data = {
                 'neuron_type': document.getElementById('neuron_type').value,
                 // 'optimizer': document.getElementById('optimizer').value,
@@ -120,7 +120,7 @@
                         // log "task complete!"
                         console.log('task complete!');
                         // set the log message to task complete
-                        document.getElementById('log-message').innerText = 'SNN Training Complete!';
+                        document.getElementById('log-message').innerText = 'Training Complete!';
                         document.getElementById('progressBar').style.backgroundColor = 'lightgreen';
                         // scroll to bottom of output
                         var objDiv = document.getElementById("output");
@@ -169,8 +169,8 @@
         const start_training = function() {
             // log "start button clicked!"
             console.log('start button clicked!');
-            // set log message to "SNN is training..."
-            document.getElementById('log-message').innerText = 'SNN is training...';
+            // set log message to "Training..."
+            document.getElementById('log-message').innerText = 'Training...';
             var data = {
                 'neuron_type': document.getElementById('neuron_type').value,
                 // 'optimizer': document.getElementById('optimizer').value,
@@ -199,7 +199,7 @@
         };
 
         const save_weights = function() {
-            console.log('Save Weights and Evaluate SNN Model button clicked!');
+            console.log('save weights button clicked!');
             // window.location.href = "/save_weights";
             try {
                 fetch('/save_weights')
@@ -224,8 +224,8 @@
 
         const download_mnist = function() {
             // log "start button clicked!"
-            console.log('MNIST start button clicked!');
-            // set log message to "SNN is training..."
+            console.log('mnist start button clicked!');
+            // set log message to "Training..."
             document.getElementById('log-message').innerText = 'Downloading MNIST...';
             fetch('/download_mnist_task')
                 .then(response => response.json())
