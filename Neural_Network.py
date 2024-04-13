@@ -91,6 +91,12 @@ class SNN(nn.Module):
             netClass = None
             if model_dict["parameters"]["neuron_type"] == "Leaky":
                 netClass = LeakyNet
+            elif model_dict["parameters"]["neuron_type"] == "Lapique":
+                netClass = LapiqueNet
+            elif model_dict["parameters"]["neuron_type"] == "Synaptic":
+                netClass = SynapticNet
+            elif model_dict["parameters"]["neuron_type"] == "Alpha":
+                netClass = AlphaNet
             net = netClass(model_dict["parameters"]["num_inputs"], model_dict["parameters"]["hidden_layers"], model_dict["parameters"]["num_outputs"], **model_dict["parameters"]["hyperparameters"])
             net.load_state_dict(weights)
             return net
@@ -133,9 +139,9 @@ class LeakyNet(SNN):
                 spk_rec.append(spk)
         return torch.stack(spk_rec, dim=0), torch.stack(mems_rec, dim=0)
 
-class LapicqueNet(SNN):
+class LapiqueNet(SNN):
     def __init__(self, num_inputs, hidden_layers, num_outputs, beta=0.95, **kwargs):
-        super().__init__(num_inputs, hidden_layers, num_outputs, "Lapicque")
+        super().__init__(num_inputs, hidden_layers, num_outputs, "Lapique")
         self.hyperparameters["beta"] = beta
         if len(hidden_layers) > 0:
             self.fc1 = nn.Linear(num_inputs, hidden_layers[0])
@@ -148,7 +154,7 @@ class LapicqueNet(SNN):
             self.fcs = nn.ModuleList([])
 
     def forward(self, x):
-        mems = [lif.init_leaky() for lif in self.lifs]
+        mems = [lif.reset_mem() for lif in self.lifs]
         spk_rec = []
         mems_rec = []
 
@@ -324,7 +330,7 @@ def loadMNIST():
     return train_loader, test_loader
 
 
-def train_network(net, train_loader, test_loader, flags):
+def train_network(net, train_loader, test_loader, flags, debug=False):
     epochs = flags['epochs']
     num_steps = flags['num_steps']
     batch_size = flags['batch_size']
@@ -339,6 +345,8 @@ def train_network(net, train_loader, test_loader, flags):
         
     # Load the network onto CUDA if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
+    net.to(device)
     # net = Net(num_inputs, num_hidden, num_outputs, beta=beta).to(device)
     loss = nn.CrossEntropyLoss()
 
@@ -350,6 +358,8 @@ def train_network(net, train_loader, test_loader, flags):
     counter = 0
     train_data = pd.DataFrame(columns=["epoch", "iteration", "train_loss", "test_loss", "train_acc", "test_acc"])
 
+    if debug:
+        num_epochs = 1
     # Outer training loop
     for epoch in range(num_epochs):
         iter_counter = 0
@@ -405,9 +415,11 @@ def train_network(net, train_loader, test_loader, flags):
                 counter += 1
                 iter_counter +=1
             yield counter/(len(train_loader)*num_epochs)
+            if debug:
+                break
 
         # check if it's the last epoch
-        if epoch == num_epochs-1:
+        if debug or epoch == num_epochs-1:
             counter -= 1
             iter_counter -= 1
             data_point = train_printer(
@@ -420,17 +432,97 @@ def train_network(net, train_loader, test_loader, flags):
                 train_data = train_data._append(data_point, ignore_index=True)
             elif train_data.iloc[-1]["iteration"] != data_point["iteration"]:
                 train_data = train_data._append(data_point, ignore_index=True)
-    output, _ = net(data.view(batch_size, -1))
-    _, idx = output.sum(dim=0).max(1)
-    acc = np.mean((targets == idx).detach().cpu().numpy())
-    net.test_accuracy = acc*100
+
+    # count true positives, true negatives, false positives, false negatives for each class over all the test data
+    accs = []
+    for _ in range(10):
+        acc = 0
+        for data, targets in test_loader:
+            data = data.to(device)
+            targets = targets.to(device)
+            output, _ = net(data.view(batch_size, -1))
+            _, idx = output.sum(dim=0).max(1)
+            acc += np.sum((targets == idx).detach().cpu().numpy())
+            if debug: break
+        acc /= len(test_loader.dataset)
+        net.test_accuracy = acc
+        accs.append(acc)
+    print(accs)
+    TP = [0 for _ in range(10)]
+    TN = [0 for _ in range(10)]
+    FP = [0 for _ in range(10)]
+    FN = [0 for _ in range(10)]
+    # 10x10 confusion matrix
+    confusion_matrix = np.zeros((10, 10))
+
+    for data, targets in test_loader:
+        data = data.to(device)
+        targets = targets.to(device)
+        output, _ = net(data.view(batch_size, -1))
+        _, idx = output.sum(dim=0).max(1)
+        for i in range(10):
+            for j in range(batch_size):
+                if idx[j] == i and targets[j] == i:
+                    TP[i] += 1
+                elif idx[j] == i and targets[j] != i:
+                    FP[i] += 1
+                elif idx[j] != i and targets[j] == i:
+                    FN[i] += 1
+                else:
+                    TN[i] += 1
+        for i in range(batch_size):
+            confusion_matrix[targets[i]][idx[i]] += 1
+
+    # plot the confusion matrix
+    plt.imshow(confusion_matrix, cmap='hot', interpolation='nearest')
+    plt.colorbar()
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.title("Confusion Matrix")
+    plt.savefig(f"{name}_confusion_matrix.png")
+    plt.close()
+
+    precisions = [TP[i]/(TP[i]+FP[i]) if TP[i]+FP[i] != 0 else 0 for i in range(10)]
+    recalls = [TP[i]/(TP[i]+FN[i]) if TP[i]+FN[i] != 0 else 0 for i in range(10) ]
+    f1_scores = [2*precisions[i]*recalls[i]/(precisions[i]+recalls[i]) if precisions[i]+recalls[i] != 0 else 0 for i in range(10)]
+    test_accuracy = (sum(TP)+sum(TN))/(sum(TP)+sum(TN)+sum(FP)+sum(FN))
+    # save test data to file
+    test_data = pd.DataFrame({
+        "TP": TP,
+        "TN": TN,
+        "FP": FP,
+        "FN": FN,
+        "Precision": precisions,
+        "Recall": recalls,
+        "F1 Score": f1_scores,
+        "Test Accuracy": [test_accuracy]+[None]*9,
+        "Test Loss": [test_loss_hist[-1]]+[None]*9
+    })
+    # test_data.to_csv(f"{name}_test_data.csv")
+
+    # write a new file with accs
+    # with open(f"{name}_test_accuracies.json", 'w') as f:
+    #     json.dump({"accuracies": accs}, f, indent=4)
+
     # save train data to file
-    train_data.to_csv(f"{name}_train_data.csv")
+    # train_data.to_csv(f"{name}_train_data.csv")
+    # with open(f"{name}_FLOPs.json", 'w') as f:
+    #     json.dump({"FLOPs": flags["flops"]}, f, indent=4)
+
+    # combine FLOPs, accuracies, train data and test data into a single file
+    with open(f"{name}_summary.json", 'w') as f:
+        json.dump({
+            "FLOPs": flags["flops"],
+            "accuracies": accs,
+            "train_data": train_data.to_dict(),
+            "statistics_data": test_data.to_dict()
+        }, f, indent=4)
     # plot the train acc
     plt.plot(train_data['iteration'], train_data['train_acc'], label="Train Accuracy")
     plt.plot(train_data['iteration'], train_data['test_acc'], label="Test Accuracy")
     plt.xlabel("Iteration")
     plt.ylabel("Accuracy")
+    plt.title("Accuracy during training")
     plt.legend()
     # save it to a file
     plt.savefig(f"{name}_accuracy_during_training.png")
@@ -440,6 +532,7 @@ def train_network(net, train_loader, test_loader, flags):
     plt.plot(train_data['iteration'], train_data['test_loss'], label="Test Loss")
     plt.xlabel("Iteration")
     plt.ylabel("Loss")
+    plt.title("Loss during training")
     plt.legend()
     # save it to a file
     plt.savefig(f"{name}_loss_during_training.png")
@@ -461,7 +554,7 @@ if __name__ == "__main__":
     # weights_path = "tmp_weights.pth"
     # net = Net.load_from_weights(weights_path)
     # print(net.test_accuracy)
-    net = SynapticNet(28*28, [20, 10], 10, beta=0.6, alpha=0.6)
+    net = LeakyNet(28*28, [], 10, beta=0.95, alpha=0.6)
     # net.save_model("tmp_model.json")
     # net = SynapticNet.load_model("tmp_model.json")
     train_loader, test_loader = loadMNIST()
@@ -478,8 +571,12 @@ if __name__ == "__main__":
         "render_nodes": False,
         "neuron_type": "Leaky",
         "weights": None,
-        "network_name": "SNN"
+        "network_name": "Net_0",
+        "flops": 28*28*10
     }
-    for progress in train_network(net, train_loader, test_loader, flags):
-        # print(progress)
+    for progress in train_network(net, train_loader, test_loader, flags, debug=False):
+        print(progress)
         pass
+
+    # lif1 = snn.Lapicque(beta=0.95)
+    # lif1.init_leaky()

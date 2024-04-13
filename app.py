@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from Neural_Network import LeakyNet, loadMNIST, train_network, LapicqueNet, SynapticNet
+from Neural_Network import LeakyNet, loadMNIST, train_network, LapiqueNet, SynapticNet
 import threading
 
 app = Flask(__name__)
@@ -33,7 +33,8 @@ flags = {
     "render_nodes": False,
     "neuron_type": "Leaky",
     "weights": None,
-    "network_name": "SNN"
+    "network_name": "Net",
+    "flops": (input_layer*10 +10*output_layer)*2
 }
 
 def update_flags(data):
@@ -46,6 +47,19 @@ def update_flags(data):
     flags['beta'] = float(data['beta'])
     flags['neuron_type'] = data['neuron_type']
     flags['network_name'] = data['network_name']
+    # flags['alpha'] = float(data['alpha'])
+    if len(network_layers) > 0:
+        flags['flops'] = 2*(input_layer*network_layers[0] + sum([network_layers[i]*network_layers[i+1] for i in range(len(network_layers)-1)]) + network_layers[-1]*output_layer)
+    else:
+        flags['flops'] = 2*(input_layer*output_layer)
+    # latex
+    """
+    If $l_i$ is the size of layer $i$, the number of FLOPs of the model is:
+    \begin{equation}
+    \text{FLOPs} = 2\sum_{i=0}^{n}l_il_{i+1}
+    \end{equation}
+Where $l_0$ is the input size, and $l_{n+1}$ is the output size ($n$ being the number of hidden layers). This is valid for all fully connected layers.
+    """
     if 'render_nodes' in data:
         flags['render_nodes'] = True
     else:
@@ -122,9 +136,9 @@ def start_task():
     update_flags(data)
     global taskRunning, percentageCompleted, neuralNetwork
     # train_loader, test_loader = loadMNIST()
-    if flags['neuron_type'] == "Lapicque":
-        print("Lapicque")
-        neuralNetwork = LapicqueNet(input_layer, network_layers, output_layer, **flags)
+    if flags['neuron_type'] == "Lapique":
+        print("Lapique")
+        neuralNetwork = LapiqueNet(input_layer, network_layers, output_layer, **flags)
     elif flags['neuron_type'] == "Leaky":
         print("Leaky")
         neuralNetwork = LeakyNet(input_layer, network_layers, output_layer, **flags)
@@ -141,7 +155,7 @@ def start_task():
             percentageCompleted = progress*100
         taskRunning = False
         flags['network_trained'] = True
-        flags['message'] = f"SNN model trained with {neuralNetwork.test_accuracy:.2f}% accuracy on the test set!"
+        flags['message'] = f"Network trained! {neuralNetwork.test_accuracy:.2f}% accuracy on test set"
 
     # run task asynchronously
     task = threading.Thread(target=train_tmp_func)
@@ -158,7 +172,7 @@ def download_mnist_task():
         train_loader, test_loader = loadMNIST()
         taskRunning = False
         flags['mnist_loaded'] = True
-        flags['message'] = "MNIST dataset was downloaded successfully!"
+        flags['message'] = "MNIST dataset downloaded successfully"
     task = threading.Thread(target=download_mnist_tmp_func, daemon=True)
     task.start()
     print("Task started")
