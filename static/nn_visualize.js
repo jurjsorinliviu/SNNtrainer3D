@@ -143,7 +143,12 @@ function buildNeuralNetwork(inputLayer, hiddenLayers, outputLayer, weights=null,
         if (weights) {
             weight = weights[0];
         }
-        makeConnectionBetweenNodes(inputNodes, hiddenNodes[0], neuralNetworkGroup, weight);
+        if (hiddenNodes.length > 0){
+            makeConnectionBetweenNodes(inputNodes, hiddenNodes[0], neuralNetworkGroup, weight);
+        }
+        else{
+            makeConnectionBetweenNodes(inputNodes, outputNodes, neuralNetworkGroup, weight);
+        }
         for (let i = 0; i < hiddenNodes.length-1; i++) {
 
             if (weights) {
@@ -154,7 +159,9 @@ function buildNeuralNetwork(inputLayer, hiddenLayers, outputLayer, weights=null,
         if (weights) {
             weight = weights[weights.length-1];
         }
-        makeConnectionBetweenNodes(hiddenNodes[hiddenNodes.length-1], outputNodes, neuralNetworkGroup, weight);
+        if (hiddenNodes.length > 0){
+            makeConnectionBetweenNodes(hiddenNodes[hiddenNodes.length-1], outputNodes, neuralNetworkGroup, weight);
+        }
     }
     camera.position.z = 100;
     // camera.position.z = currentLayer*layerSpacing/2
