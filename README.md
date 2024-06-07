@@ -37,7 +37,7 @@ The SNNtrainer3D offers several novel features that make it a valuable tool for 
 
 \- Download trained weights.
 
-\- Plot the loss, accuracy, Recall, Precision, F1Score, the FLOPS, as well as the confusion matrix of the model during training.
+\- Plot the loss, accuracy, Recall, Precision, F1Score, the total FLOPs, as well as the confusion matrix of the model during training.
 ## Visualization
 The software uses [Three.js](https://threejs.org/) to create a 3D visualization of the designed model architecture. This visualization enhances understanding of the model's structure and connections between layers (the user can zoom in, rotate, move, etc.). 
 
