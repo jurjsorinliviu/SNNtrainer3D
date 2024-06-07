@@ -3,7 +3,10 @@ Training Spiking Neural Networks using a User-friendly Application with 3D Archi
 ![APP GUI](https://github.com/jurjsorinliviu/SNNtrainer3D/assets/30218337/053fe422-31ff-4f72-8f0d-212dcd811252)
 This document outlines the features and functionality of the **SNNtrainer3D: Training Spiking Neural Networks using a User-friendly Application with 3D Architecture Visualization Capabilities** software application.
 
-NEW: A video demonstration of SNNtrainer3D can be seen here: https://www.youtube.com/watch?v=UHwPItZTjEs
+A video demonstration of SNNtrainer3D can be seen here: https://www.youtube.com/watch?v=UHwPItZTjEs
+
+New: The latest version of the SNNtrainer3D app supports now multiple datasets (MNIST and XOR) and offers the possibility to train SNNs with "Realistic Lapicque" neurons as well (this allows researchers to create neuromorphic circuits for inference using the more realistic model weights easily):
+![SNNtrainer3D GUI v12](https://github.com/jurjsorinliviu/SNNtrainer3D/assets/30218337/1613cbfd-3923-4780-b88a-09d87ab51b10)
 
 ## Overview
 The SNNtrainer3D is a software application designed to train Spiking Neural Networks (SNNs). It provides a user-friendly interface for designing and training models, with the ability to visualize the model architecture using Three.js. Users can add, remove, and edit hidden layers (currently, only fully connected layers are supported).
@@ -25,19 +28,19 @@ The SNNtrainer3D offers several novel features that make it a valuable tool for 
 
 \- Fully customizable network architecture
 
-\- Integrated with the MNIST dataset
+\- Integrated with the MNIST and XOR dataset
 
-\- Train the model on the MNIST dataset.
+\- Train the model on the MNIST and XOR datasets.
 
 \- Progress bar for training.
 
 \- Download trained weights.
 
-\- Plot the loss and accuracy of the model during training.
+\- Plot the loss, accuracy, Recall, Precision, F1Score, the FLOPS, as well as the confusion matrix of the model during training.
 ## Visualization
 The software uses [Three.js](https://threejs.org/) to create a 3D visualization of the designed model architecture. This visualization enhances understanding of the model's structure and connections between layers (the user can zoom in, rotate, move, etc.). 
 
-Here, the connections between layers are presented in two colors: green, the positive weights, and red, the negative weights. The intensity of the color is the absolute value of the weight. Before training, the color of the weights serves only for a better view of the weights' complexity in the SNN architecture; however, once training is done, the color of the weights will be updated, and the user can visualize the final weight colors that contributed to the resulted accuracy on the specific dataset it was trained on (e.g., MNIST).
+Here, the connections between layers are presented in two colors: green, the positive weights, and red, the negative weights. The intensity of the color is the absolute value of the weight. Before training, the color of the weights serves only for a better view of the weights' complexity in the SNN architecture; however, once training is done, the color of the weights will be updated, and the user can visualize the final weight colors that contributed to the resulted accuracy on the specific dataset it was trained on (e.g., MNIST, XOR).
 
 **Note**: the weights could be updated automatically in real-time during training as well; however, due to the huge number of weights, performance will be impacted considerably, and for this reason, we decided to update them only once training is done (once the weights are downloaded, the user could use them directly in another script for inference or continue further training). However, in a future LTSpice implementation of an SNN, we should choose the real-time visualization of the weight changes.
 ## Setup
@@ -55,7 +58,7 @@ To set up and get started with the SNNtrainer3D, follow these steps:
 ## Usage
 1\. **Design Model**: Customize the neural network architecture by adding, removing, or editing hidden layers.
 
-2\. **Download Dataset**: Click the "Download MNIST Dataset" button to download and prepare the MNIST dataset for training.
+2\. **Download Dataset**: Click the "Download (MNIST or XOR) Dataset" button to download and prepare the MNIST dataset for training.
 
 3\. **Train Model**: Once the dataset is downloaded, click the "Train Model" button to begin training the model on the dataset.
 
@@ -68,9 +71,9 @@ The development process began with:
 
 \- Adding, removing, and editing hidden layers.
 
-\- Downloading the MNIST dataset.
+\- Downloading the MNIST and XOR datasets.
 
-\- Training the model.
+\- Training the models.
 
 \- Downloading trained weights.
 
@@ -120,15 +123,15 @@ Extensive testing was conducted throughout the development process to ensure fun
 
 \- Enhances user experience and facilitates model design and debugging.
 
-\- SNNs mostly lack visualization tools, so incorporating one adds significant value.
+\- SNNs mostly lack visualization tools, so incorporating one adds significant value to the community.
 
-\- Originality stems from the need to simplify understanding SNNs and provide a user-friendly interface for designing and training models.
+\- Originality stems from the need to simplify understanding SNNs and provide a user-friendly interface for designing and training SNN models.
 ## Future Features
 \- **Support for Different Layer Types**: Enhance the flexibility of model design by adding support for various types of hidden layers, such as convolutional, recurrent, and pooling layers.
 
 \- **Real-time Training Visualization**: Provide a real-time visualization of the training process, including metrics like loss and accuracy.
 
-\- **Integration with Additional Datasets**: Incorporate functionality to download and use additional datasets beyond MNIST for training and evaluation.
+\- **Integration with Additional Datasets**: Incorporate functionality to download and use additional datasets beyond MNIST and XOR for training and evaluation.
 
 \- **Bulk addition/editing of layers**: Users can add multiple layers simultaneously, with the option to specify the number of layers and their properties.
 ## Conclusions
