@@ -25,11 +25,11 @@ The SNNtrainer3D offers several novel features that make it a valuable tool for 
 
 \- Add, remove, and edit hidden layers.
 
-\- 5 different types of neurons (LIF, Lapique, Synaptic, Alpha, and "Realistic Lapicque")
+\- 5 different types of neurons (LIF, Lapicque, Synaptic, Alpha, and "Realistic Lapicque")
 
 \- Fully customizable network architecture
 
-\- Integrated with the MNIST and XOR dataset
+\- Integrated with the MNIST and XOR datasets
 
 \- Train the model on the MNIST and XOR datasets.
 
