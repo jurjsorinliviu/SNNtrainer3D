@@ -43,7 +43,7 @@ The software uses [Three.js](https://threejs.org/) to create a 3D visualization 
 
 Here, the connections between layers are presented in two colors: green, the positive weights, and red, the negative weights. The intensity of the color is the absolute value of the weight. Before training, the color of the weights serves only for a better view of the weights' complexity in the SNN architecture; however, once training is done, the color of the weights will be updated, and the user can visualize the final weight colors that contributed to the resulted accuracy on the specific dataset it was trained on (e.g., MNIST, XOR).
 
-**Note**: the weights could be updated automatically in real-time during training as well; however, due to the huge number of weights, performance will be impacted considerably, and for this reason, we decided to update them only once training is done (once the weights are downloaded, the user could use them directly in another script for inference or continue further training). However, in a future LTSpice implementation of an SNN, we should choose the real-time visualization of the weight changes.
+**Note**: the weights could be updated automatically in real-time during training as well; however, due to the huge number of weights, performance will be impacted considerably, and for this reason, we decided to update them only once training is done (once the weights are downloaded, the user could use them directly in another script for inference or continue further training). However, in a future SPICE implementation of an SNN, we could choose the real-time visualization of the weight changes.
 ## Setup
 To set up and get started with the SNNtrainer3D, follow these steps:
 
