@@ -56,22 +56,53 @@
     <script type="module">
 
         import { buildNeuralNetwork } from "{{ url_for('static', filename='nn_visualize.js') }}";
-        const update_output = function() {
-            console.log('update button clicked!');
+        
+        const makeFormData = function() {
             var data = {
                 'neuron_type': document.getElementById('neuron_type').value,
                 // 'optimizer': document.getElementById('optimizer').value,
                 // 'loss': document.getElementById('loss').value,
                 'epochs': document.getElementsByName('epochs')[0].value,
                 'learning_rate': document.getElementsByName('learning_rate')[0].value,
-                'beta': document.getElementsByName('beta')[0].value,
+                'beta': document.getElementsByName('beta')[0] ? document.getElementsByName('beta')[0].value : {{flags.beta}},
+                'alpha': document.getElementsByName('alpha')[0] ? document.getElementsByName('alpha')[0].value : {{flags.alpha}},
                 'num_steps': document.getElementsByName('num_steps')[0].value,
-                'batch_size': document.getElementsByName('batch_size')[0].value,
-                'network_name': document.getElementsByName('network_name')[0].value
+                'batch_size': document.getElementsByName('batch_size')[0] ? document.getElementsByName('batch_size')[0].value : {{flags.batch_size}},
+                'network_name': document.getElementsByName('network_name')[0].value,
+                'dataset': document.getElementsByName('dataset')[0].value,
+                'R': document.getElementsByName('R')[0] ? document.getElementsByName('R')[0].value : {{flags.R}},
+                'C': document.getElementsByName('C')[0] ? document.getElementsByName('C')[0].value : {{flags.C}},
+                'seed': document.getElementsByName('seed')[0].value,
+                'time_step': document.getElementsByName('time_step')[0].value,
             };
             if (document.getElementById('render_nodes').checked) {
                 data['render_nodes'] = 'True';
             }
+            return data;
+        }
+        const update_output = function() {
+            console.log('update button clicked!');
+            var data = makeFormData();
+            // var data = {
+            //     'neuron_type': document.getElementById('neuron_type').value,
+            //     // 'optimizer': document.getElementById('optimizer').value,
+            //     // 'loss': document.getElementById('loss').value,
+            //     'epochs': document.getElementsByName('epochs')[0].value,
+            //     'learning_rate': document.getElementsByName('learning_rate')[0].value,
+            //     'beta': document.getElementsByName('beta')[0].value,
+            //     'alpha': document.getElementsByName('alpha')[0] ? document.getElementsByName('alpha')[0].value : 0,
+            //     'num_steps': document.getElementsByName('num_steps')[0].value,
+            //     'batch_size': document.getElementsByName('batch_size')[0].value,
+            //     'network_name': document.getElementsByName('network_name')[0].value,
+            //     'dataset': document.getElementsByName('dataset')[0].value,
+            //     'R': document.getElementsByName('R')[0] ? document.getElementsByName('R')[0].value : {{flags.R}},
+            //     'C': document.getElementsByName('C')[0] ? document.getElementsByName('C')[0].value : {{flags.C}},
+            //     'seed': document.getElementsByName('seed')[0].value,
+            //     'time_step': document.getElementsByName('time_step')[0].value,
+            // };
+            // if (document.getElementById('render_nodes').checked) {
+            //     data['render_nodes'] = 'True';
+            // }
             $.ajax({
                 url: '/update',
                 type: 'POST',
@@ -90,6 +121,7 @@
                 document.getElementById("add-layer").addEventListener("click", add_layer);
                 document.getElementById("render_nodes").addEventListener("change", updateLayers);
                 document.getElementById("neuron_type").addEventListener("change", update_output);
+                document.getElementById("dataset").addEventListener("change", updateLayers);
                 document.getElementById("network_name").addEventListener("change", update_output);
                 // Event listener for input fields
                 const inputFields = document.querySelectorAll('input[class="layer-input"]');
@@ -171,20 +203,27 @@
             console.log('start button clicked!');
             // set log message to "Training..."
             document.getElementById('log-message').innerText = 'Training...';
-            var data = {
-                'neuron_type': document.getElementById('neuron_type').value,
-                // 'optimizer': document.getElementById('optimizer').value,
-                // 'loss': document.getElementById('loss').value,
-                'epochs': document.getElementsByName('epochs')[0].value,
-                'learning_rate': document.getElementsByName('learning_rate')[0].value,
-                'beta': document.getElementsByName('beta')[0].value,
-                'num_steps': document.getElementsByName('num_steps')[0].value,
-                'batch_size': document.getElementsByName('batch_size')[0].value,
-                'network_name': document.getElementsByName('network_name')[0].value
-            };
-            if (document.getElementById('render_nodes').checked) {
-                data['render_nodes'] = 'True';
-            }
+            var data = makeFormData();
+            // var data = {
+            //     'neuron_type': document.getElementById('neuron_type').value,
+            //     // 'optimizer': document.getElementById('optimizer').value,
+            //     // 'loss': document.getElementById('loss').value,
+            //     'epochs': document.getElementsByName('epochs')[0].value,
+            //     'learning_rate': document.getElementsByName('learning_rate')[0].value,
+            //     'beta': document.getElementsByName('beta')[0].value,
+            //     'alpha': document.getElementsByName('alpha')[0] ? document.getElementsByName('alpha')[0].value : 0,
+            //     'num_steps': document.getElementsByName('num_steps')[0].value,
+            //     'batch_size': document.getElementsByName('batch_size')[0].value,
+            //     'network_name': document.getElementsByName('network_name')[0].value,
+            //     'dataset': document.getElementsByName('dataset')[0].value,
+            //     'R': document.getElementsByName('R')[0] ? document.getElementsByName('R')[0].value : {{flags.R}},
+            //     'C': document.getElementsByName('C')[0] ? document.getElementsByName('C')[0].value : {{flags.C}},
+            //     'seed': document.getElementsByName('seed')[0].value,
+            //     'time_step': document.getElementsByName('time_step')[0].value,
+            // };
+            // if (document.getElementById('render_nodes').checked) {
+            //     data['render_nodes'] = 'True';
+            // }
             fetch('/start_task', {
                 method: 'POST',
                 headers: {
@@ -257,6 +296,8 @@
         document.getElementById("render_nodes").addEventListener("change", updateLayers);
         document.getElementById("neuron_type").addEventListener("change", update_output);
         document.getElementById("network_name").addEventListener("change", update_output);
+        document.getElementById("dataset").addEventListener("change", updateLayers);
+
         // Event listener for input fields
         const inputFields = document.querySelectorAll('input[class="layer-input"]');
         inputFields.forEach(function(inputField) {
