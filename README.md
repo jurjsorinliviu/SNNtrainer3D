@@ -6,6 +6,7 @@ This document outlines the features and functionality of the **SNNtrainer3D: Tra
 A video demonstration of SNNtrainer3D can be seen here: https://www.youtube.com/watch?v=UHwPItZTjEs
 
 New: The latest version of the SNNtrainer3D app supports now multiple datasets (MNIST and XOR) and offers the possibility to train SNNs with "Realistic Lapicque" neurons as well (this allows researchers to create neuromorphic circuits for inference using the more realistic model weights easily):
+
 ![SNNtrainer3D GUI v12](https://github.com/jurjsorinliviu/SNNtrainer3D/assets/30218337/1613cbfd-3923-4780-b88a-09d87ab51b10)
 
 ## Overview
