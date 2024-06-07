@@ -39,14 +39,17 @@ class SNN(nn.Module):
 
     def get_weight_list(self):
         # get fully connected weights (not biases)
-        weights = []
-        # get the input layer weights
-        weights.append(self.fc1.weight.tolist())
-        for layer in self.fcs:
-            weights.append(layer.weight.tolist())
-        # get the output layer weights
-        weights.append(self.fc2.weight.tolist())
-        return weights
+        if len(self.hidden_layers) > 0:
+            weights = []
+            # get the input layer weights
+            weights.append(self.fc1.weight.tolist())
+            for layer in self.fcs:
+                weights.append(layer.weight.tolist())
+            # get the output layer weights
+            weights.append(self.fc2.weight.tolist())
+            return weights
+        else:
+            return [self.fc1.weight.tolist()]
 
     def save_model(self, path, pickle=False):
         if pickle:
@@ -176,7 +179,51 @@ class LapiqueNet(SNN):
                 mems_rec.append(mems[0].clone())
                 spk_rec.append(spk)
         return torch.stack(spk_rec, dim=0), torch.stack(mems_rec, dim=0)
-    
+
+
+class RealisticLapicqueNet(SNN):
+    def __init__(self, num_inputs, hidden_layers, num_outputs, R=10, C=0.00015, time_step=0.001, **kwargs):
+        super().__init__(num_inputs, hidden_layers, num_outputs, "RealisticLapicque")
+        time_step = float(time_step)
+        R = float(R)
+        C = float(C)
+        self.hyperparameters["R"] = R
+        self.hyperparameters["C"] = C
+        self.hyperparameters["time_step"] = time_step
+        if len(hidden_layers) > 0:
+            self.fc1 = nn.Linear(num_inputs, hidden_layers[0])
+            self.lifs = nn.ModuleList([snn.Lapicque(R=R, C=C, time_step=time_step) for _ in range(len(hidden_layers)+1)])
+            self.fcs = nn.ModuleList([nn.Linear(hidden_layers[i], hidden_layers[i+1]) for i in range(len(hidden_layers)-1)])
+            self.fc2 = nn.Linear(hidden_layers[-1], num_outputs)
+        else:
+            self.fc1 = nn.Linear(num_inputs, num_outputs)
+            self.lifs = nn.ModuleList([snn.Lapicque(R=R, C=C, time_step=time_step)])
+            self.fcs = nn.ModuleList([])
+
+    def forward(self, x):
+        mems = [lif.reset_mem() for lif in self.lifs]
+        spk_rec = []
+        mems_rec = []
+
+        
+        for step in range(num_steps):
+            if len(self.hidden_layers) > 0:
+                cur = self.fc1(x)
+                spk, mems[0] = self.lifs[0](cur, mems[0])
+                for i in range(len(self.fcs)):
+                    cur = self.fcs[i](spk)
+                    spk, mems[i+1] = self.lifs[i+1](cur, mems[i+1])
+                cur = self.fc2(spk)
+                spk, mems[-1] = self.lifs[-1](cur, mems[-1])
+                mems_rec.append(mems[-1].clone())
+                spk_rec.append(spk)
+            else:
+                cur = self.fc1(x)
+                spk, mems[0] = self.lifs[0](cur, mems[0])
+                mems_rec.append(mems[0].clone())
+                spk_rec.append(spk)
+        return torch.stack(spk_rec, dim=0), torch.stack(mems_rec, dim=0)
+
 class SynapticNet(SNN):
     def __init__(self, num_inputs, hidden_layers, num_outputs, alpha=0.95, beta=0.95, **kwargs):
         super().__init__(num_inputs, hidden_layers, num_outputs, "Synaptic")
@@ -325,12 +372,18 @@ def loadMNIST():
     mnist_test = datasets.MNIST(data_path, train=False, download=True, transform=transform)
 
 
-    train_loader = DataLoader(mnist_train, batch_size=batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(mnist_test, batch_size=batch_size, shuffle=True, drop_last=True)
-    return train_loader, test_loader
+    # train_loader = DataLoader(mnist_train, batch_size=batch_size, shuffle=True, drop_last=True)
+    # test_loader = DataLoader(mnist_test, batch_size=batch_size, shuffle=True, drop_last=True)
+    # return train_loader, test_loader
+
+    return mnist_train, mnist_test
 
 
-def train_network(net, train_loader, test_loader, flags, debug=False):
+def train_network(net, mnist_train, mnist_test, flags, debug=False):
+    # setSeed(flags['seed'])
+    # TODO convert input to frequency for different training type (may be needed for STPD)
+    train_loader = DataLoader(mnist_train, batch_size=flags['batch_size'], shuffle=True, drop_last=True)
+    test_loader = DataLoader(mnist_test, batch_size=flags['batch_size'], shuffle=True, drop_last=True)
     epochs = flags['epochs']
     num_steps = flags['num_steps']
     batch_size = flags['batch_size']
@@ -350,7 +403,7 @@ def train_network(net, train_loader, test_loader, flags, debug=False):
     # net = Net(num_inputs, num_hidden, num_outputs, beta=beta).to(device)
     loss = nn.CrossEntropyLoss()
 
-    optimizer = torch.optim.Adam(net.parameters(), lr=5e-4, betas=(0.9, 0.999))
+    optimizer = torch.optim.Adam(net.parameters(), lr=flags["learning_rate"], betas=(0.9, 0.999))
 
     num_epochs = epochs
     loss_hist = []
@@ -539,6 +592,220 @@ def train_network(net, train_loader, test_loader, flags, debug=False):
     plt.close()
 
 
+
+def train_network_xor(net, flags, debug=False):
+    # setSeed(flags['seed'])
+    # net = LapiqueNet(2, [2], 1, 10, 0.0015, 0.001)
+    # train the network with xor
+    x = torch.tensor([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=torch.float32)
+    y = torch.tensor([[0], [1], [1], [0]], dtype=torch.float32)
+
+    epochs = flags['epochs']
+    num_steps = flags['num_steps']
+    batch_size = 1
+    name = flags['network_name']
+    
+    while os.path.exists(name):
+        name = name + str(random.randint(0, 10))
+    
+    with open(name, 'w') as f:
+        json.dump(flags, f, indent=4)
+    # Load the network onto CUDA if available
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
+    net.to(device)
+    # net = Net(num_inputs, num_hidden, num_outputs, beta=beta).to(device)
+    loss = nn.MSELoss()
+
+    optimizer = torch.optim.Adam(net.parameters(), lr=flags["learning_rate"], betas=(0.9, 0.999))
+
+    num_epochs = epochs
+    loss_hist = []
+    test_loss_hist = []
+    counter = 0
+    train_data = pd.DataFrame(columns=["epoch", "iteration", "train_loss", "test_loss", "train_acc", "test_acc"])
+
+    if debug:
+        num_epochs = 1
+    iter_counter = 0
+    # Outer training loop
+    for epoch in range(num_epochs):
+        iter_counter += 1
+        counter += 1
+        # sample a batch of from x,y
+        train_batch = torch.utils.data.DataLoader(
+            torch.utils.data.TensorDataset(x, y),
+            batch_size=batch_size,
+            shuffle=True
+        )
+
+        total_loss = torch.zeros((1), dtype=torch.float32, device=device)
+        for data, targets in train_batch:
+            # print(data, targets)
+            data = data.to(device)
+            targets = targets.to(device)
+
+            # forward pass
+            net.train()
+            spk_rec, mem_rec = net(data.view(batch_size, -1))
+
+            # print(len(mem_rec))
+            # initialize the loss & sum over time
+            loss_val = torch.zeros((1), dtype=torch.float32, device=device)
+            for step in range(num_steps):
+                loss_val += loss(mem_rec[step]/2, targets)
+            total_loss += loss_val
+
+            # Gradient calculation + weight update
+            optimizer.zero_grad()
+            loss_val.backward()
+            optimizer.step()
+
+        
+        loss_hist.append(total_loss.item())
+
+        if epoch % 10 == 0:
+            net.eval()
+            # compute accuracy
+            errors = 0
+            for xi, yi in zip(x, y):
+                xi = xi.to(device)
+                yi = yi.to(device)
+                output, membranes = net(xi.view(1, -1))
+                if output.mean() > 0.5 and yi == 0:
+                    errors += 1
+                elif output.mean() < 0.5 and yi == 1:
+                    errors += 1
+                # errors += torch.abs(yi - membranes.mean()/2).item()
+                print(xi.numpy(), membranes.mean().detach().numpy())
+            # print()
+            print(f"Epoch {epoch} - Loss: {total_loss.item()} - Test Loss: {errors}")
+            if errors == 0 and loss_val.item() < 1:
+                break
+            test_loss_hist.append(errors)
+            # print(f"Epoch {epoch} - Loss: {loss_val.item()} - Test Loss: {errors}")
+            train_data = train_data._append({
+                "epoch": epoch,
+                "iteration": iter_counter,
+                "train_loss": total_loss.item(),
+                "test_loss": 1,
+                "train_acc": 0,
+                "test_acc": (4-errors)/4
+            }, ignore_index=True)
+        yield counter/num_epochs
+        
+        if debug or (epoch == num_epochs-1 and not epoch % 10 == 0):
+            counter -= 1
+            iter_counter -= 1
+            # update train data
+            net.eval()
+            # compute accuracy
+            errors = 0
+            for xi, yi in zip(x, y):
+                xi = xi.to(device)
+                yi = yi.to(device)
+                output, membranes = net(xi.view(1, -1))
+                if output.mean() > 0.5 and yi == 0:
+                    errors += 1
+                elif output.mean() < 0.5 and yi == 1:
+                    errors += 1
+                # errors += torch.abs(yi - membranes.mean()/2).item()
+                print(xi.numpy(), membranes.mean().detach().numpy())
+            # print()
+            print(f"Epoch {epoch} - Loss: {total_loss.item()} - Test Loss: {errors}")
+            if errors == 0 and total_loss.item() < 1:
+                break
+            test_loss_hist.append(errors)
+            # print(f"Epoch {epoch} - Loss: {loss_val.item()} - Test Loss: {errors}")
+            train_data = train_data._append({
+                "epoch": epoch,
+                "iteration": iter_counter,
+                "train_loss": total_loss.item(),
+                "test_loss": 1,
+                "train_acc": 0,
+                "test_acc": (4-errors)/4
+            }, ignore_index=True)
+    # count true positives, true negatives, false positives, false negatives
+    accs = []
+    for _ in range(10):
+        errors = 0
+        for xi, yi in zip(x, y):
+            xi = xi.to(device)
+            yi = yi.to(device)
+            output, membranes = net(xi.view(1, -1))
+            if output.mean() >= 0.5 and yi == 0:
+                errors += 1
+            elif output.mean() <= 0.5 and yi == 1:
+                errors += 1
+        net.test_accuracy = (4-errors)/4
+        accs.append((4-errors)/4)
+    TP = 0
+    TN = 0
+    FP = 0
+    FN = 0
+    for xi, yi in zip(x, y):
+        xi = xi.to(device)
+        yi = yi.to(device)
+        output, membranes = net(xi.view(1, -1))
+        if output.mean() >= 0.5 and yi == 1:
+            TP += 1
+        elif output.mean() >= 0.5 and yi == 0:
+            FP += 1
+        elif output.mean() <= 0.5 and yi == 1:
+            FN += 1
+        elif output.mean() <= 0.5 and yi == 0:
+            TN += 1
+    # plot confusion matrix
+    plt.imshow([[TP, FP], [FN, TN]], cmap='hot', interpolation='nearest')
+    plt.colorbar()
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    # show ticks at 0 and 1 both x and y axes for predicted and actual values
+    plt.xticks([0, 1], [0, 1])
+    plt.yticks([0, 1], [0, 1])
+    plt.title("Confusion Matrix")
+    plt.savefig(f"{name}_confusion_matrix.png")
+    plt.close()
+
+    if TP == 0:
+        precision = 0
+        recall = 0
+        f1 = 0
+    else:
+        precision = TP/(TP+FP)
+        recall = TP/(TP+FN)
+        f1 = 2*(precision*recall)/(precision+recall)
+    test_accuracy = sum(accs)/len(accs)
+    test_data = {
+        "TP": TP,
+        "TN": TN,
+        "FP": FP,
+        "FN": FN,
+        "Precision": precision,
+        "Recall": recall,
+        "F1 Score": f1,
+        "Test Accuracy": test_accuracy,
+        "Test Loss": test_loss_hist[-1]
+    }
+    with open(f"{name}_summary.json", "w") as f:
+        json.dump({
+            "FLOPs": flags['flops'],
+            "accuracies": accs,
+            "statistics_data": test_data,
+            "train_data": train_data.to_dict()
+        }, f, indent=4)
+    
+    # plot the train loss
+    plt.plot(train_data['iteration'], train_data['train_loss'])
+    plt.xlabel("Iteration")
+    plt.ylabel("Loss")
+    plt.title("Loss during training")
+    plt.legend()
+    # save it to file
+    plt.savefig(f"{name}_loss_during_training.png")
+    plt.close()
+
+
 if __name__ == "__main__":
     # net = Net(28*28, [100, 100, 100], 10, beta=0.95)
     # # get fully connected weights (not biases)
@@ -554,29 +821,67 @@ if __name__ == "__main__":
     # weights_path = "tmp_weights.pth"
     # net = Net.load_from_weights(weights_path)
     # print(net.test_accuracy)
-    net = LeakyNet(28*28, [], 10, beta=0.95, alpha=0.6)
-    # net.save_model("tmp_model.json")
-    # net = SynapticNet.load_model("tmp_model.json")
-    train_loader, test_loader = loadMNIST()
+    # net = LeakyNet(28*28, [], 10, beta=0.95, alpha=0.6)
+    # # net.save_model("tmp_model.json")
+    # # net = SynapticNet.load_model("tmp_model.json")
+    # train_loader, test_loader = loadMNIST()
+    # flags = {
+    #     "mnist_loaded": True,
+    #     "network_trained": False,
+    #     "message": "",
+    #     "num_steps": 25,
+    #     "epochs": 1,
+    #     "batch_size": 128,
+    #     "learning_rate": 5e-4,
+    #     "beta": 0.95,
+    #     "alpha": 0.5,
+    #     "render_nodes": False,
+    #     "neuron_type": "Leaky",
+    #     "weights": None,
+    #     "network_name": "Net_0",
+    #     "flops": 28*28*10
+    # }
+    # for progress in train_network(net, train_loader, test_loader, flags, debug=False):
+    #     print(progress)
+    #     pass
+
+    # xor net
+    # net = LapiqueNet(2, [2], 1, beta=0.95)
     flags = {
-        "mnist_loaded": True,
+        "mnist_loaded": False,
         "network_trained": False,
         "message": "",
         "num_steps": 25,
-        "epochs": 1,
+        "epochs": 200,
         "batch_size": 128,
-        "learning_rate": 5e-4,
+        "learning_rate": 5e-3,
         "beta": 0.95,
         "alpha": 0.5,
         "render_nodes": False,
         "neuron_type": "Leaky",
         "weights": None,
-        "network_name": "Net_0",
-        "flops": 28*28*10
+        "network_name": "Net_xor",
+        "flops": 12,
+        "R": 10,
+        "C": 0.0015
     }
-    for progress in train_network(net, train_loader, test_loader, flags, debug=False):
+    random.seed(0)
+    np.random.seed(0)
+    torch.manual_seed(0)
+    net = RealisticLapicqueNet(2, [2], 1, R=10, C=0.0015, time_step=0.001)
+    # net = RealisticLapicqueNet(28*28, [], 10, R=10, C=0.0015, time_step=0.001)
+    # net = LeakyNet(28*28, [], 10, beta=0.95, alpha=0.6)
+
+    train_loader, test_loader = loadMNIST()
+    # print(train_loader.dataset)
+    # for progress in train_network(net, train_loader, test_loader, flags, debug=False):
+    #     print(progress)
+    #     pass
+    
+    for progress in train_network_xor(net, flags, debug=False):
         print(progress)
         pass
+    net.save_model(f"{flags['network_name']}.json")
 
     # lif1 = snn.Lapicque(beta=0.95)
     # lif1.init_leaky()

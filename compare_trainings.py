@@ -5,8 +5,8 @@ import json
 from scipy.stats import wilcoxon
 
 training_names = [
-    "Net_05",
-    "Net_010"
+    "Net26",
+    "Net6604876475938242194"
 ]
 # load the json from {name}_summary.json
 summaries = {}
