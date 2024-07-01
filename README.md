@@ -142,6 +142,7 @@ The SNNtrainer3D provides a comprehensive solution for designing, training, and 
 
 ## Citation
 If you are interested in citing SNNtrainer3D, please use the following citation:
+
 Jurj, S.L.; Nouri, S.B.; Strutwolf, J. SNNtrainer3D: Training Spiking Neural Networks Using a User-Friendly Application with 3D Architecture Visualization Capabilities. Appl. Sci. 2024, 14, 5752. https://doi.org/10.3390/app14135752
 
 
