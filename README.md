@@ -1,4 +1,6 @@
 # SNNtrainer3D
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/jurjsorinliviu/SNNtrainer3D)
+
 Training Spiking Neural Networks using a User-friendly Application with 3D Architecture Visualization Capabilities
 ![APP GUI](https://github.com/jurjsorinliviu/SNNtrainer3D/assets/30218337/053fe422-31ff-4f72-8f0d-212dcd811252)
 This document outlines the features and functionality of the **SNNtrainer3D: Training Spiking Neural Networks using a User-friendly Application with 3D Architecture Visualization Capabilities** software application.
@@ -8,6 +10,32 @@ This document outlines the features and functionality of the **SNNtrainer3D: Tra
 **A video demonstration of SNNtrainer3D can be seen here**: https://www.youtube.com/watch?v=UHwPItZTjEs
 
 **New**: The latest version of the SNNtrainer3D app now supports multiple datasets (MNIST and XOR) and offers the possibility to train SNNs with "Realistic Lapicque" neurons as well (this allows researchers to create neuromorphic circuits for inference using the more realistic model weights easily):
+
+
+## 🚀 Quick Start with GitHub Codespaces
+
+You can now run SNNtrainer3D directly in your browser without any local setup! Simply click the badge above or follow these steps:
+
+1. **Click the "Open in GitHub Codespaces" badge** above, or navigate to the repository and click the green "Code" button, then select "Codespaces"
+2. **Wait for the environment to build** (first time takes 2-3 minutes, subsequent launches are faster)
+3. **Codespace will automatically**:
+   - Install Python 3.12 and all required dependencies
+   - Set up the development environment
+   - Create necessary directories
+4. **Start the application** by running in the terminal:
+   ```bash
+   python app.py
+   ```
+5. **Access the application** - VSCode will automatically forward port 5000 and provide a link to open the web interface
+
+### Codespaces Benefits:
+- ✅ **No local installation required** - runs entirely in the cloud
+- ✅ **Pre-configured environment** - all dependencies installed automatically
+- ✅ **Cross-platform** - works on any device with a browser
+
+📚 **[Read the detailed Codespaces Guide](CODESPACES_GUIDE.md)** for troubleshooting and advanced features.
+
+- ✅ **Free tier available** - 60 hours/month for free users, 180 hours/month for Pro users
 
 ![SNNtrainer3D GUI v12](https://github.com/jurjsorinliviu/SNNtrainer3D/assets/30218337/1613cbfd-3923-4780-b88a-09d87ab51b10)
 
